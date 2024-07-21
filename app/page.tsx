@@ -1,95 +1,68 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+// app/page.tsx
+import { useState, useEffect } from 'react'
+import { revalidatePath } from 'next/cache'
+import {
+  cookiesClient,
+  AuthGetCurrentUserServer,
+  AuthGetUserAttributes,
+  AuthGetCurrentUserGroupsServer,
+} from '@/utils/amplify-utils'
+import Logout from '@/components/Logout'
+import StatusButton from '@/components/StatusButton'
+import DeleteTodo from '@/components/DeleteTodo'
+async function App() {
+  const user = await AuthGetUserAttributes()
+  const groups = await AuthGetCurrentUserGroupsServer()
 
-export default function Home() {
+  console.log('has Admin', groups?.includes('admin'))
+
+  //{ filter: { done: { eq: false } } }
+
+  const { data: todos } = await cookiesClient.models.Todo.list()
+
+  async function addTodo(data: FormData) {
+    'use server'
+    console.log('adding todo')
+
+    const title = data.get('title')?.toString()
+    const start = performance.now()
+    await cookiesClient.models.Todo.create({
+      content: title,
+      done: false,
+      priority: 'medium',
+    })
+    const end = performance.now()
+    console.log(`Execution time: ${end - start} ms`)
+    revalidatePath('/')
+  }
+
+  async function deleteTodo(id: string) {
+    'use server'
+    console.log('deleting todo')
+    await cookiesClient.models.Todo.delete({ id })
+    revalidatePath('/')
+  }
+
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    <>
+      <h1>Hello, Amplify 👋</h1>
+      {groups?.includes('admin') ? <div>Admin Only</div> : <div>Guest</div>}
+      {user && <Logout />}
+      <form action={addTodo}>
+        <input type='text' name='title' />
+        <StatusButton title='Add Todo' />
+      </form>
 
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  );
+      <ul style={{ listStyle: 'none' }}>
+        {todos &&
+          todos.map((todo) => (
+            <li key={todo.id}>
+              <DeleteTodo todo={todo} deleteTodo={deleteTodo} />
+            </li>
+          ))}
+      </ul>
+    </>
+  )
 }
+
+export default App
